@@ -1,0 +1,356 @@
+metadata:
+  project: "XYZ Financial Portal"
+  methodology: "ISO 27005:2022 + NIST SP 800-30 Rev. 1"
+  date: "2026-02-18"
+  assessor: "Amaris Consulting"
+
+probability_scale:
+  1: "Muy Baja - Evento raro, requiere habilidades avanzadas"
+  2: "Baja - Posible pero poco frecuente"
+  3: "Media - Probable, herramientas y tecnicas conocidas"
+  4: "Alta - Muy probable, vectores facilmente accesibles"
+  5: "Muy Alta - Casi seguro, ataques automatizados disponibles"
+
+impact_scale:
+  1: "Insignificante"
+  2: "Menor"
+  3: "Moderado"
+  4: "Mayor"
+  5: "Catastrofico"
+
+risk_levels:
+  critical:
+    min: 15
+    max: 25
+    color: "#DC143C"
+  high:
+    min: 9
+    max: 14
+    color: "#FF8C00"
+  medium:
+    min: 5
+    max: 8
+    color: "#FFD700"
+  low:
+    min: 1
+    max: 4
+    color: "#32CD32"
+
+assets:
+  - id: "A-01"
+    name: "Datos PII de clientes"
+    classification: "Confidencial - Alto"
+    description: "Nombres, direcciones, telefono, email, documentos de identidad"
+  - id: "A-02"
+    name: "Credenciales de autenticacion"
+    classification: "Confidencial - Critico"
+    description: "Hashes de contrasenas, tokens de sesion, factores de autenticacion"
+  - id: "A-03"
+    name: "Datos de tarjetas de credito"
+    classification: "Confidencial - Critico (PCI-DSS)"
+    description: "Numeros de tarjeta (PAN), CVV, fecha de expiracion"
+  - id: "A-04"
+    name: "Datos transaccionales"
+    classification: "Confidencial - Alto"
+    description: "Transferencias, pagos, montos, cuentas destino"
+  - id: "A-05"
+    name: "Sesiones de usuario"
+    classification: "Confidencial - Alto"
+    description: "Tokens JWT/session IDs, estado de autenticacion"
+  - id: "A-06"
+    name: "Archivos cargados (quejas)"
+    classification: "Interno"
+    description: "Documentos adjuntos de clientes, evidencias"
+  - id: "A-07"
+    name: "Informacion de productos financieros"
+    classification: "Interno"
+    description: "Catalogo de productos, tasas, condiciones"
+  - id: "A-08"
+    name: "Logs y registros de auditoria"
+    classification: "Interno - Alto"
+    description: "Trazabilidad de operaciones, evidencia forense"
+  - id: "A-09"
+    name: "Infraestructura del portal"
+    classification: "Critico"
+    description: "Servidores, bases de datos, APIs, balanceadores"
+  - id: "A-10"
+    name: "Codigo fuente de la aplicacion"
+    classification: "Confidencial - Alto"
+    description: "Logica de negocio, algoritmos, configuraciones"
+
+risks:
+  - id: "R-01"
+    name: "IDOR en datos personales"
+    threat: "Insecure Direct Object Reference"
+    functionality: "Actualizacion de Datos Personales"
+    cwe: "CWE-639"
+    probability: 4
+    impact: 4
+    risk_score: 16
+    classification: "CRITICAL"
+    affected_assets: ["A-01", "A-05"]
+    controls: ["RBAC", "Object-Level Authorization", "Re-autenticacion"]
+
+  - id: "R-02"
+    name: "Inyeccion SQL"
+    threat: "SQL Injection"
+    functionality: "Actualizacion de Datos Personales"
+    cwe: "CWE-89"
+    probability: 3
+    impact: 5
+    risk_score: 15
+    classification: "CRITICAL"
+    affected_assets: ["A-01", "A-03", "A-04"]
+    controls: ["Parametrizacion", "WAF", "Validacion server-side"]
+
+  - id: "R-03"
+    name: "Cross-Site Scripting (XSS)"
+    threat: "XSS Reflejado"
+    functionality: "Actualizacion de Datos Personales"
+    cwe: "CWE-79"
+    probability: 4
+    impact: 3
+    risk_score: 12
+    classification: "HIGH"
+    affected_assets: ["A-01", "A-05"]
+    controls: ["CSP", "Sanitizacion", "WAF", "Output encoding"]
+
+  - id: "R-04"
+    name: "Manipulacion de datos PII"
+    threat: "Data Tampering"
+    functionality: "Actualizacion de Datos Personales"
+    cwe: "CWE-20"
+    probability: 3
+    impact: 3
+    risk_score: 9
+    classification: "HIGH"
+    affected_assets: ["A-01"]
+    controls: ["Validacion server-side", "Firma de datos"]
+
+  - id: "R-05"
+    name: "Data tampering en transito"
+    threat: "Man-in-the-Middle"
+    functionality: "Actualizacion de Datos Personales"
+    cwe: "CWE-319"
+    probability: 2
+    impact: 4
+    risk_score: 8
+    classification: "MEDIUM"
+    affected_assets: ["A-01", "A-04"]
+    controls: ["TLS 1.3", "HSTS", "Certificate pinning"]
+
+  - id: "R-06"
+    name: "Fraude por CSRF en transferencias"
+    threat: "Cross-Site Request Forgery"
+    functionality: "Transferencias Bancarias"
+    cwe: "CWE-352"
+    probability: 4
+    impact: 5
+    risk_score: 20
+    classification: "CRITICAL"
+    affected_assets: ["A-04", "A-05"]
+    controls: ["Anti-CSRF tokens", "SameSite cookies", "Re-autenticacion"]
+
+  - id: "R-07"
+    name: "Manipulacion de montos"
+    threat: "Parameter Tampering"
+    functionality: "Transferencias Bancarias"
+    cwe: "CWE-472"
+    probability: 3
+    impact: 5
+    risk_score: 15
+    classification: "CRITICAL"
+    affected_assets: ["A-04"]
+    controls: ["Validacion server-side", "Firma de transacciones", "Audit trail"]
+
+  - id: "R-08"
+    name: "Replay attacks en transacciones"
+    threat: "Replay Attack"
+    functionality: "Transferencias Bancarias"
+    cwe: "CWE-294"
+    probability: 3
+    impact: 5
+    risk_score: 15
+    classification: "CRITICAL"
+    affected_assets: ["A-04"]
+    controls: ["Idempotency keys", "Nonces", "Timestamps"]
+
+  - id: "R-09"
+    name: "Race condition en saldos"
+    threat: "Race Condition"
+    functionality: "Transferencias Bancarias"
+    cwe: "CWE-362"
+    probability: 3
+    impact: 4
+    risk_score: 12
+    classification: "HIGH"
+    affected_assets: ["A-04"]
+    controls: ["Bloqueo transaccional", "Saga pattern"]
+
+  - id: "R-10"
+    name: "Session hijacking"
+    threat: "Session Fixation/Hijacking"
+    functionality: "Transferencias Bancarias"
+    cwe: "CWE-384"
+    probability: 4
+    impact: 4
+    risk_score: 16
+    classification: "CRITICAL"
+    affected_assets: ["A-02", "A-05"]
+    controls: ["MFA", "Tokens seguros", "Timeout", "Flags de cookies"]
+
+  - id: "R-11"
+    name: "Robo de datos de tarjeta"
+    threat: "Data Theft"
+    functionality: "Pago de Tarjetas de Credito"
+    cwe: "CWE-312"
+    probability: 4
+    impact: 5
+    risk_score: 20
+    classification: "CRITICAL"
+    affected_assets: ["A-03"]
+    controls: ["Tokenizacion", "Cifrado AES-256", "PCI-DSS", "HSM"]
+
+  - id: "R-12"
+    name: "Skimming digital (Magecart)"
+    threat: "Digital Skimming"
+    functionality: "Pago de Tarjetas de Credito"
+    cwe: "CWE-506"
+    probability: 3
+    impact: 5
+    risk_score: 15
+    classification: "CRITICAL"
+    affected_assets: ["A-03"]
+    controls: ["CSP estricto", "SRI", "Monitoreo de integridad"]
+
+  - id: "R-13"
+    name: "Man-in-the-Middle (MitM)"
+    threat: "MitM Attack"
+    functionality: "Pago de Tarjetas de Credito"
+    cwe: "CWE-300"
+    probability: 2
+    impact: 5
+    risk_score: 10
+    classification: "HIGH"
+    affected_assets: ["A-03", "A-04"]
+    controls: ["TLS 1.3", "Certificate pinning", "HSTS"]
+
+  - id: "R-14"
+    name: "Incumplimiento PCI-DSS"
+    threat: "Regulatory Non-Compliance"
+    functionality: "Pago de Tarjetas de Credito"
+    cwe: "N/A"
+    probability: 3
+    impact: 5
+    risk_score: 15
+    classification: "CRITICAL"
+    affected_assets: ["A-03"]
+    controls: ["Tokenizacion", "Proveedor PCI-DSS Level 1", "Segmentacion CDE"]
+
+  - id: "R-15"
+    name: "Information disclosure en logs"
+    threat: "Sensitive Data Exposure"
+    functionality: "Pago de Tarjetas de Credito"
+    cwe: "CWE-532"
+    probability: 3
+    impact: 4
+    risk_score: 12
+    classification: "HIGH"
+    affected_assets: ["A-03", "A-08"]
+    controls: ["Enmascaramiento en logs", "Proteccion append-only"]
+
+  - id: "R-16"
+    name: "Information disclosure"
+    threat: "Data Leakage"
+    functionality: "Consulta de Productos Financieros"
+    cwe: "CWE-200"
+    probability: 3
+    impact: 2
+    risk_score: 6
+    classification: "MEDIUM"
+    affected_assets: ["A-07"]
+    controls: ["Error handling seguro", "Filtrado de respuestas"]
+
+  - id: "R-17"
+    name: "Enumeracion de recursos"
+    threat: "Resource Enumeration"
+    functionality: "Consulta de Productos Financieros"
+    cwe: "CWE-799"
+    probability: 3
+    impact: 2
+    risk_score: 6
+    classification: "MEDIUM"
+    affected_assets: ["A-07"]
+    controls: ["Rate limiting", "UUIDs en lugar de IDs secuenciales"]
+
+  - id: "R-18"
+    name: "Broken Access Control (productos)"
+    threat: "Unauthorized Access"
+    functionality: "Consulta de Productos Financieros"
+    cwe: "CWE-862"
+    probability: 2
+    impact: 3
+    risk_score: 6
+    classification: "MEDIUM"
+    affected_assets: ["A-07"]
+    controls: ["RBAC", "Validacion de perfil"]
+
+  - id: "R-19"
+    name: "Upload de webshell"
+    threat: "Remote Code Execution via Upload"
+    functionality: "Quejas/Reclamos con Carga de Archivos"
+    cwe: "CWE-434"
+    probability: 4
+    impact: 5
+    risk_score: 20
+    classification: "CRITICAL"
+    affected_assets: ["A-06", "A-09"]
+    controls: ["Validacion MIME magic bytes", "Whitelist tipos", "Sandbox", "Antimalware"]
+
+  - id: "R-20"
+    name: "Malware via archivo"
+    threat: "Malware Upload"
+    functionality: "Quejas/Reclamos con Carga de Archivos"
+    cwe: "CWE-434"
+    probability: 3
+    impact: 4
+    risk_score: 12
+    classification: "HIGH"
+    affected_assets: ["A-06", "A-09"]
+    controls: ["Antimalware ClamAV", "Sandbox", "Whitelist de tipos"]
+
+  - id: "R-21"
+    name: "XSS almacenado"
+    threat: "Stored Cross-Site Scripting"
+    functionality: "Quejas/Reclamos con Carga de Archivos"
+    cwe: "CWE-79"
+    probability: 4
+    impact: 3
+    risk_score: 12
+    classification: "HIGH"
+    affected_assets: ["A-06", "A-01"]
+    controls: ["Sanitizacion", "CSP", "Output encoding"]
+
+  - id: "R-22"
+    name: "Path traversal"
+    threat: "Directory Traversal"
+    functionality: "Quejas/Reclamos con Carga de Archivos"
+    cwe: "CWE-22"
+    probability: 3
+    impact: 3
+    risk_score: 9
+    classification: "HIGH"
+    affected_assets: ["A-06", "A-09"]
+    controls: ["Renombrado UUID", "Almacenamiento fuera webroot"]
+
+  - id: "R-23"
+    name: "DoS por uploads masivos"
+    threat: "Denial of Service"
+    functionality: "Quejas/Reclamos con Carga de Archivos"
+    cwe: "CWE-400"
+    probability: 3
+    impact: 2
+    risk_score: 6
+    classification: "MEDIUM"
+    affected_assets: ["A-09"]
+    controls: ["Limite 10MB", "Rate limiting", "Queue processing"]
