@@ -1,0 +1,25 @@
+title = "Gitleaks Configuration - XYZ Financial Portal"
+
+[allowlist]
+  paths = [
+    '''task-05-secrets/bad-example/.*''',
+    '''\.gitleaks\.toml''',
+  ]
+
+[[rules]]
+  id = "financial-api-key"
+  description = "Financial Service API Key"
+  regex = '''(?i)(stripe|plaid|dwolla|braintree)[_-]?(secret|api)[_-]?key\s*[=:]\s*['"]?[\w-]{20,}'''
+  tags = ["financial", "api-key"]
+
+[[rules]]
+  id = "database-connection-string"
+  description = "Database Connection String"
+  regex = '''(?i)(postgresql|mysql|mongodb|mssql):\/\/[^:]+:[^@]+@[^\/]+\/\w+'''
+  tags = ["database", "credential"]
+
+[[rules]]
+  id = "jwt-secret"
+  description = "JWT Secret Key"
+  regex = '''(?i)(jwt|token)[_-]?secret\s*[=:]\s*['"][\w\-\.]{16,}['"]'''
+  tags = ["jwt", "secret"]
