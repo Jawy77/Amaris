@@ -1,0 +1,137 @@
+rules:
+  - id: sql-injection-fstring
+    patterns:
+      - pattern: |
+          $QUERY = f"...{$VAR}..."
+          ...
+          $DB.execute($QUERY)
+    message: >
+      SQL Injection: Input del usuario interpolado directamente en query SQL.
+      Usar consultas parametrizadas. Riesgo R-02 (CWE-89).
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-89"
+      risk_id: "R-02"
+      owasp: "A03:2021 - Injection"
+      confidence: HIGH
+
+  - id: sql-injection-concatenation
+    patterns:
+      - pattern: |
+          $QUERY = "..." + $VAR + "..."
+          ...
+          $DB.execute($QUERY)
+    message: >
+      SQL Injection por concatenacion de strings. Usar consultas parametrizadas.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-89"
+      owasp: "A03:2021 - Injection"
+
+  - id: xss-render-template-string
+    pattern: render_template_string(<... + $VAR + ...>)
+    message: >
+      XSS: Input del usuario en render_template_string sin escape.
+      Usar render_template con Jinja2 autoescaping. Riesgo R-03 (CWE-79).
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-79"
+      risk_id: "R-03"
+      owasp: "A03:2021 - Injection"
+
+  - id: xss-fstring-template
+    pattern: render_template_string(f"...")
+    message: >
+      XSS: f-string en render_template_string permite inyeccion de codigo.
+      Riesgo R-03 (CWE-79).
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-79"
+      risk_id: "R-03"
+
+  - id: hardcoded-password
+    pattern-either:
+      - pattern: $VAR = "...password..."
+      - pattern: $VAR = "...P@ss..."
+      - pattern: $VAR = "...secret..."
+    message: >
+      Credencial hardcodeada detectada. Usar variables de entorno o secrets manager.
+      CWE-798.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-798"
+      owasp: "A07:2021 - Security Misconfiguration"
+
+  - id: hardcoded-api-key
+    pattern-regex: '(?i)(api[_-]?key|secret[_-]?key)\s*=\s*["\'][a-zA-Z0-9_\-]{20,}["\']'
+    message: >
+      API key hardcodeada. Mover a Secrets Manager o variables de entorno.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-798"
+
+  - id: weak-hash-md5
+    pattern: hashlib.md5(...)
+    message: >
+      MD5 es criptograficamente roto. Usar bcrypt/argon2 para passwords,
+      SHA-256 para integridad. CWE-328.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-328"
+
+  - id: weak-hash-sha1
+    pattern: hashlib.sha1(...)
+    message: >
+      SHA1 es criptograficamente debil. Usar SHA-256 o superior.
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe: "CWE-328"
+
+  - id: flask-debug-mode
+    pattern: app.run(..., debug=True, ...)
+    message: >
+      Debug mode habilitado. Expone stack traces y permite ejecucion de codigo
+      en produccion. CWE-489.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-489"
+
+  - id: insecure-deserialization
+    pattern: pickle.loads(...)
+    message: >
+      Deserializacion insegura con pickle. Permite ejecucion remota de codigo.
+      Usar JSON o protobuf. CWE-502.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-502"
+      owasp: "A08:2021 - Software and Data Integrity Failures"
+
+  - id: path-traversal
+    pattern: os.path.join($BASE, $USER_INPUT)
+    message: >
+      Posible Path Traversal. Validar y sanitizar el nombre de archivo.
+      Usar UUID para renombrado. Riesgo R-22 (CWE-22).
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe: "CWE-22"
+      risk_id: "R-22"
+
+  - id: database-connection-string
+    pattern-regex: '(?i)(postgresql|mysql|mongodb):\/\/[^:]+:[^@]+@'
+    message: >
+      Connection string con credenciales detectada. Usar Secrets Manager.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-798"
