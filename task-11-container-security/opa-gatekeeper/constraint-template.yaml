@@ -1,0 +1,82 @@
+# =============================================================================
+# OPA Gatekeeper - Constraint Template
+# Referencia: Task 11 Seccion 11.2.4 - Admission Controllers
+# =============================================================================
+
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8scontainersecurity
+  annotations:
+    description: Enforce container security best practices for financial portal
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sContainerSecurity
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            allowedRegistries:
+              type: array
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8scontainersecurity
+
+        # No permitir contenedores como root
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.securityContext.runAsNonRoot
+          msg := sprintf("Container '%s' debe tener runAsNonRoot: true", [container.name])
+        }
+
+        # Filesystem read-only obligatorio
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.securityContext.readOnlyRootFilesystem
+          msg := sprintf("Container '%s' debe tener readOnlyRootFilesystem: true", [container.name])
+        }
+
+        # No permitir privilege escalation
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          container.securityContext.allowPrivilegeEscalation == true
+          msg := sprintf("Container '%s' no puede tener allowPrivilegeEscalation: true", [container.name])
+        }
+
+        # No permitir tag :latest
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          endswith(container.image, ":latest")
+          msg := sprintf("Container '%s' usa ':latest'. Usar version especifica.", [container.name])
+        }
+
+        # Obligar resource limits
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.resources.limits.memory
+          msg := sprintf("Container '%s' debe tener memory limits definidos", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.resources.limits.cpu
+          msg := sprintf("Container '%s' debe tener CPU limits definidos", [container.name])
+        }
+
+        # Validar registries permitidos
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          registries := input.parameters.allowedRegistries
+          count(registries) > 0
+          not registry_allowed(container.image, registries)
+          msg := sprintf("Container '%s' usa imagen de registry no autorizado: %s", [container.name, container.image])
+        }
+
+        registry_allowed(image, registries) {
+          startswith(image, registries[_])
+        }

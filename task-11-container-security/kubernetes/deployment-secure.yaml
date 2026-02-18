@@ -1,0 +1,108 @@
+# =============================================================================
+# Deployment Hardened - Portal Financiero XYZ
+# Referencia: Task 11 Seccion 11.2.3 - Runtime Security
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: financial-portal
+  namespace: financial-portal
+  labels:
+    app: financial-portal
+    version: v1.0.0
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: financial-portal
+  template:
+    metadata:
+      labels:
+        app: financial-portal
+        tier: backend
+      annotations:
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+    spec:
+      # No montar token de service account automaticamente
+      automountServiceAccountToken: false
+      serviceAccountName: financial-portal-sa
+
+      # Security Context a nivel de Pod
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: app
+          # Usar digest SHA256 (no tag mutable)
+          image: registry.xyz-financial.com/portal:v1.0.0
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+
+          # Security Context a nivel de Container
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            # No agregar capabilities innecesarias
+
+          # Resource Limits (prevenir resource abuse)
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          # Probes de salud
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+
+          # Environment (desde secrets, no hardcodeado)
+          envFrom:
+            - secretRef:
+                name: portal-secrets
+            - configMapRef:
+                name: portal-config
+
+          # Volumenes (read-only filesystem + tmp writable)
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: app-cache
+              mountPath: /app/.cache
+
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: "64Mi"
+        - name: app-cache
+          emptyDir:
+            sizeLimit: "128Mi"

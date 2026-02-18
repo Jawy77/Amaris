@@ -1,0 +1,71 @@
+# =============================================================================
+# Falco Rules - Runtime Detection - Portal Financiero XYZ
+# Referencia: Task 11 Seccion 11.2.3 - Runtime Security
+# =============================================================================
+
+- rule: Shell Spawned in Financial Portal
+  desc: Detectar ejecucion de shell en contenedores del portal financiero
+  condition: >
+    spawned_process and container and
+    container.image.repository contains "financial-portal" and
+    proc.name in (sh, bash, zsh, ash, dash, ksh)
+  output: >
+    CRITICO: Shell ejecutado en contenedor del portal financiero
+    (user=%user.name command=%proc.cmdline container=%container.name
+     image=%container.image.repository pod=%k8s.pod.name)
+  priority: CRITICAL
+  tags: [container, shell, financial, mitre_execution]
+
+- rule: Unexpected Outbound Connection
+  desc: Conexion saliente a destinos no autorizados
+  condition: >
+    outbound and container and
+    container.image.repository contains "financial-portal" and
+    not fd.sip.name in (postgresql.financial-portal.svc,
+                        redis.financial-portal.svc,
+                        vault.vault.svc)
+  output: >
+    ALERTA: Conexion saliente inesperada desde portal financiero
+    (command=%proc.cmdline connection=%fd.name container=%container.name
+     dest_ip=%fd.sip)
+  priority: WARNING
+  tags: [container, network, financial, mitre_exfiltration]
+
+- rule: Sensitive File Read
+  desc: Lectura de archivos sensibles del sistema
+  condition: >
+    open_read and container and
+    (fd.name startswith /etc/shadow or
+     fd.name startswith /etc/passwd or
+     fd.name startswith /proc/1/environ or
+     fd.name startswith /var/run/secrets)
+  output: >
+    ALERTA: Archivo sensible accedido en contenedor
+    (user=%user.name command=%proc.cmdline file=%fd.name
+     container=%container.name)
+  priority: WARNING
+  tags: [container, filesystem, mitre_credential_access]
+
+- rule: Package Manager Executed
+  desc: Instalacion de paquetes en runtime (posible compromiso)
+  condition: >
+    spawned_process and container and
+    proc.name in (apt, apt-get, yum, dnf, apk, pip, npm, gem)
+  output: >
+    ALERTA: Package manager ejecutado en runtime
+    (command=%proc.cmdline container=%container.name)
+  priority: WARNING
+  tags: [container, software_mgmt, mitre_persistence]
+
+- rule: Database Credential File Access
+  desc: Acceso a archivos con credenciales de BD
+  condition: >
+    open_read and container and
+    (fd.name contains "credentials" or
+     fd.name contains ".pgpass" or
+     fd.name contains ".my.cnf")
+  output: >
+    CRITICO: Acceso a archivo de credenciales de BD
+    (user=%user.name file=%fd.name container=%container.name)
+  priority: CRITICAL
+  tags: [container, credentials, financial, mitre_credential_access]

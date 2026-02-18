@@ -1,0 +1,21 @@
+# =============================================================================
+# OPA Gatekeeper - Constraint (aplicado al namespace financial-portal)
+# =============================================================================
+
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sContainerSecurity
+metadata:
+  name: financial-portal-container-security
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet", "DaemonSet"]
+    namespaces:
+      - financial-portal
+  parameters:
+    allowedRegistries:
+      - "registry.xyz-financial.com/"
+      - "gcr.io/xyz-financial-prod/"

@@ -1,0 +1,44 @@
+# =============================================================================
+# Dockerfile HARDENED - Portal Financiero XYZ
+# Referencia: Task 11 - Container Security Best Practices
+# =============================================================================
+
+# Stage 1: Build
+FROM python:3.11-alpine AS builder
+
+RUN apk add --no-cache gcc musl-dev libffi-dev
+
+WORKDIR /build
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# Stage 2: Production (imagen minima)
+FROM python:3.11-alpine AS production
+
+# Crear usuario non-root (Seccion 11.2.1)
+RUN addgroup -S appgroup && \
+    adduser -S appuser -G appgroup -h /app -s /sbin/nologin && \
+    # Eliminar shells innecesarios
+    rm -f /bin/sh /bin/ash 2>/dev/null || true
+
+# Actualizar y limpiar
+RUN apk update && apk upgrade --no-cache && \
+    rm -rf /var/cache/apk/* /tmp/*
+
+# Copiar SOLO dependencias de produccion
+COPY --from=builder /install /usr/local
+
+WORKDIR /app
+COPY --chown=appuser:appgroup ./app ./app
+
+# Non-root
+USER appuser:appgroup
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+    CMD wget -qO /dev/null http://localhost:8000/health || exit 1
+
+EXPOSE 8000
+
+ENTRYPOINT ["gunicorn"]
+CMD ["--bind", "0.0.0.0:8000", "--workers", "2", "app:create_app()"]
