@@ -1,0 +1,37 @@
+# =============================================================================
+# Container Security Scan
+# Referencia: Task 11 - Escaneo de imagenes Docker
+# =============================================================================
+
+name: Container Security Scan
+
+on:
+  push:
+    paths:
+      - '**/Dockerfile*'
+  pull_request:
+    paths:
+      - '**/Dockerfile*'
+
+jobs:
+  trivy-scan:
+    name: Trivy Container Scan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - dockerfile: task-08-devsecops/Dockerfile
+            tag: devsecops
+          - dockerfile: task-11-container-security/Dockerfile.secure
+            tag: secure-app
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Image
+        run: docker build -t ${{ matrix.tag }}:test -f ${{ matrix.dockerfile }} . || true
+      - name: Trivy Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ matrix.tag }}:test'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true

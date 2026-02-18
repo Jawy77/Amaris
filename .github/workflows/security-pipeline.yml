@@ -1,0 +1,118 @@
+# =============================================================================
+# DevSecOps Security Pipeline - Portal Financiero XYZ
+# Referencia: Task 8 - Pipeline completo con seguridad en cada fase
+# =============================================================================
+
+name: DevSecOps Security Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  # --- Fase 2: Code - Secret Scanning ---
+  secret-scan:
+    name: Secret Scanning (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  # --- Fase 3: Build - SAST ---
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Semgrep Scan
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/owasp-top-ten
+            p/python
+            task-04-sast-dast/sast/.semgrep.yml
+
+  # --- Fase 3: Build - SCA ---
+  sca:
+    name: SCA (Dependency Check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install safety
+          find . -name "requirements.txt" -exec pip install -r {} \; 2>/dev/null || true
+      - name: Safety Check
+        run: safety check --output json || true
+
+  # --- Fase 5: Release - Container Image Scan ---
+  container-scan:
+    name: Container Scan (Trivy)
+    runs-on: ubuntu-latest
+    needs: [sast, secret-scan]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker Image
+        run: |
+          docker build -t portal:test -f task-08-devsecops/Dockerfile . || true
+      - name: Trivy Vulnerability Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'portal:test'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true
+
+  # --- Fase 5: Release - IaC Scan ---
+  iac-scan:
+    name: IaC Security (Checkov)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkov Terraform Scan
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: task-06-cloud-onprem/terraform/
+          framework: terraform
+          quiet: true
+          soft_fail: true
+
+  # --- Fase 4: Test - DAST ---
+  dast:
+    name: DAST (OWASP ZAP)
+    runs-on: ubuntu-latest
+    needs: [container-scan]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Start Vulnerable App
+        run: |
+          cd task-04-sast-dast/vulnerable-app
+          pip install -r requirements.txt
+          python app.py &
+          sleep 5
+      - name: OWASP ZAP Baseline
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: 'http://localhost:5000'
+        continue-on-error: true

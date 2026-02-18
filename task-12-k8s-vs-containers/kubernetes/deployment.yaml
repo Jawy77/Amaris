@@ -1,0 +1,54 @@
+# =============================================================================
+# Kubernetes Deployment - Portal Financiero XYZ
+# Referencia: Task 12 - Equivalente K8s del Docker Compose
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: financial-portal
+  namespace: financial-portal
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: financial-portal
+  template:
+    metadata:
+      labels:
+        app: financial-portal
+    spec:
+      containers:
+        - name: app
+          image: registry.xyz-financial.com/portal:v1.0.0
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: portal-secrets
+            - configMapRef:
+                name: portal-config
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10

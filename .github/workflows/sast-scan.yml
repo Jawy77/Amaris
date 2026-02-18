@@ -1,0 +1,27 @@
+# =============================================================================
+# SAST Scan - Analisis Estatico de Codigo
+# Referencia: Task 4 - Se ejecuta en cada Pull Request
+# =============================================================================
+
+name: SAST Scan
+
+on:
+  pull_request:
+    paths:
+      - '**.py'
+      - '**.js'
+      - '**.ts'
+
+jobs:
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Semgrep Scan
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/owasp-top-ten
+            p/python
+            task-04-sast-dast/sast/.semgrep.yml

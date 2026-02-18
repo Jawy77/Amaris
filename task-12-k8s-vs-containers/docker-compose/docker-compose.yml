@@ -1,0 +1,69 @@
+# =============================================================================
+# Docker Compose - Portal Financiero XYZ
+# Referencia: Task 12 - Despliegue con contenedores standalone
+# =============================================================================
+
+version: "3.9"
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://portal:portal_pass@db:5432/financial_portal
+      - REDIS_URL=redis://:redis_pass@redis:6379/0
+      - JWT_SECRET=${JWT_SECRET:-change-in-production}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: financial_portal
+      POSTGRES_USER: portal
+      POSTGRES_PASSWORD: portal_pass
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass redis_pass --maxmemory 256mb
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_pass", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
+volumes:
+  pgdata:
+    driver: local
