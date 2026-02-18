@@ -1,0 +1,61 @@
+# =============================================================================
+# Pod Security Standards - Namespace financial-portal
+# Referencia: Task 6, CIS K8s Benchmark, Pod Security Admission
+# Nivel: RESTRICTED (maximo hardening para produccion)
+# =============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: financial-portal
+  labels:
+    # Enforce: rechazar pods que no cumplan
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    # Audit: registrar violaciones en audit log
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+    # Warn: mostrar warnings al usuario
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
+
+---
+# Resource Quotas para prevenir resource abuse
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: financial-portal-quota
+  namespace: financial-portal
+spec:
+  hard:
+    requests.cpu: "8"
+    requests.memory: "16Gi"
+    limits.cpu: "16"
+    limits.memory: "32Gi"
+    pods: "50"
+    services: "20"
+    secrets: "30"
+    configmaps: "30"
+
+---
+# Limit Range para defaults de recursos
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: financial-portal-limits
+  namespace: financial-portal
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "500m"
+        memory: "512Mi"
+      defaultRequest:
+        cpu: "100m"
+        memory: "128Mi"
+      max:
+        cpu: "2"
+        memory: "4Gi"
+      min:
+        cpu: "50m"
+        memory: "64Mi"

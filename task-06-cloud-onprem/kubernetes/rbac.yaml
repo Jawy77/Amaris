@@ -1,0 +1,62 @@
+# =============================================================================
+# RBAC - Minimo Privilegio - Portal Financiero XYZ
+# Referencia: Task 6 - Seccion 6.2, CIS K8s Benchmark 5.1
+# =============================================================================
+
+# Service Account dedicado (no usar default)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: financial-portal-sa
+  namespace: financial-portal
+automountServiceAccountToken: false
+
+---
+# Role con permisos minimos para la aplicacion
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: financial-app-role
+  namespace: financial-portal
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["portal-config"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+
+---
+# Binding del role al service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: financial-app-binding
+  namespace: financial-portal
+subjects:
+  - kind: ServiceAccount
+    name: financial-portal-sa
+    namespace: financial-portal
+roleRef:
+  kind: Role
+  name: financial-app-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Role para equipo de operaciones (read-only)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ops-readonly-role
+  namespace: financial-portal
+rules:
+  - apiGroups: ["", "apps", "batch"]
+    resources: ["pods", "deployments", "services", "jobs", "configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
