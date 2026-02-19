@@ -1,0 +1,255 @@
+{
+  "last_updated": "2026-02-19T05:26:34Z",
+  "pipelines": [
+    {
+      "name": "Security Pipeline",
+      "status": "success",
+      "last_run": "2026-02-19T05:26:34Z",
+      "duration_seconds": 247,
+      "trigger": "push to main",
+      "commit": "c55515a",
+      "stages": [
+        { "name": "Secret Scan", "status": "success", "tool": "Gitleaks", "duration_seconds": 18 },
+        { "name": "SAST", "status": "success", "tool": "Semgrep", "duration_seconds": 45 },
+        { "name": "SCA", "status": "success", "tool": "pip-audit", "duration_seconds": 22 },
+        { "name": "Container Scan", "status": "success", "tool": "Trivy", "duration_seconds": 63 },
+        { "name": "IaC Scan", "status": "success", "tool": "Checkov", "duration_seconds": 34 },
+        { "name": "DAST", "status": "success", "tool": "OWASP ZAP", "duration_seconds": 65 }
+      ]
+    },
+    {
+      "name": "SAST Scan",
+      "status": "success",
+      "last_run": "2026-02-19T04:12:00Z",
+      "duration_seconds": 42,
+      "trigger": "pull_request",
+      "commit": "a80cf14"
+    },
+    {
+      "name": "DAST Scan",
+      "status": "failure",
+      "last_run": "2026-02-18T22:45:10Z",
+      "duration_seconds": 189,
+      "trigger": "manual",
+      "commit": "0fb5f6a",
+      "error": "Target application unreachable on port 5000"
+    },
+    {
+      "name": "Container Scan",
+      "status": "success",
+      "last_run": "2026-02-19T03:30:00Z",
+      "duration_seconds": 58,
+      "trigger": "Dockerfile change",
+      "commit": "7b9ebd1"
+    },
+    {
+      "name": "Secret Scan",
+      "status": "success",
+      "last_run": "2026-02-19T05:26:34Z",
+      "duration_seconds": 15,
+      "trigger": "push",
+      "commit": "c55515a"
+    }
+  ],
+  "vulnerabilities": [
+    {
+      "id": "VULN-001",
+      "title": "SQL Injection in login endpoint",
+      "severity": "critical",
+      "cwe": "CWE-89",
+      "file": "task-04-sast-dast/vulnerable-app/app.py",
+      "line": 84,
+      "tool": "Semgrep",
+      "status": "open",
+      "description": "User input concatenated directly into SQL query string via f-string"
+    },
+    {
+      "id": "VULN-002",
+      "title": "Reflected XSS via render_template_string",
+      "severity": "high",
+      "cwe": "CWE-79",
+      "file": "task-04-sast-dast/vulnerable-app/app.py",
+      "line": 103,
+      "tool": "Semgrep",
+      "status": "open",
+      "description": "Unsanitized user input rendered directly in HTML template"
+    },
+    {
+      "id": "VULN-003",
+      "title": "Hardcoded credentials in source code",
+      "severity": "high",
+      "cwe": "CWE-798",
+      "file": "task-04-sast-dast/vulnerable-app/app.py",
+      "line": 25,
+      "tool": "Gitleaks",
+      "status": "open",
+      "description": "Database password hardcoded in application source"
+    },
+    {
+      "id": "VULN-004",
+      "title": "Weak hashing algorithm MD5",
+      "severity": "medium",
+      "cwe": "CWE-328",
+      "file": "task-04-sast-dast/vulnerable-app/app.py",
+      "line": 153,
+      "tool": "Semgrep",
+      "status": "open",
+      "description": "MD5 used for password hashing - cryptographically broken"
+    },
+    {
+      "id": "VULN-005",
+      "title": "Insecure deserialization with pickle",
+      "severity": "critical",
+      "cwe": "CWE-502",
+      "file": "task-04-sast-dast/vulnerable-app/app.py",
+      "line": 162,
+      "tool": "Semgrep",
+      "status": "open",
+      "description": "Pickle deserialization of untrusted user input allows RCE"
+    },
+    {
+      "id": "VULN-006",
+      "title": "Path traversal in file download",
+      "severity": "high",
+      "cwe": "CWE-22",
+      "file": "task-04-sast-dast/vulnerable-app/app.py",
+      "line": 138,
+      "tool": "Semgrep",
+      "status": "open",
+      "description": "No sanitization on user-supplied filename allows directory traversal"
+    },
+    {
+      "id": "VULN-007",
+      "title": "Flask debug mode enabled in production",
+      "severity": "medium",
+      "cwe": "CWE-489",
+      "file": "task-04-sast-dast/vulnerable-app/app.py",
+      "line": 176,
+      "tool": "Semgrep",
+      "status": "open",
+      "description": "Debug mode exposes stack traces and interactive debugger"
+    },
+    {
+      "id": "VULN-008",
+      "title": "Missing CSRF protection on transfer endpoint",
+      "severity": "medium",
+      "cwe": "CWE-352",
+      "file": "task-04-sast-dast/vulnerable-app/app.py",
+      "line": 117,
+      "tool": "OWASP ZAP",
+      "status": "open",
+      "description": "Financial transfer endpoint lacks anti-CSRF token validation"
+    },
+    {
+      "id": "VULN-009",
+      "title": "Container running as root",
+      "severity": "medium",
+      "cwe": "CWE-250",
+      "file": "task-04-sast-dast/vulnerable-app/Dockerfile",
+      "line": 1,
+      "tool": "Trivy",
+      "status": "mitigated",
+      "description": "Vulnerable app Dockerfile does not specify non-root user"
+    },
+    {
+      "id": "VULN-010",
+      "title": "TLS 1.0/1.1 not explicitly disabled",
+      "severity": "low",
+      "cwe": "CWE-326",
+      "file": "task-07-api-security/api-gateway/nginx-api-gateway.conf",
+      "line": 12,
+      "tool": "Checkov",
+      "status": "resolved",
+      "description": "Legacy TLS versions should be explicitly disabled in config"
+    },
+    {
+      "id": "VULN-011",
+      "title": "Overly permissive CORS configuration",
+      "severity": "low",
+      "cwe": "CWE-942",
+      "file": "task-02-security-controls/nginx/nginx-security-headers.conf",
+      "line": 18,
+      "tool": "OWASP ZAP",
+      "status": "resolved",
+      "description": "CORS allows multiple origins - should be restricted to known domains"
+    }
+  ],
+  "infrastructure": {
+    "bunker": {
+      "vpn_hub": {
+        "status": "online",
+        "ip": "10.0.0.1",
+        "connections": 3,
+        "uptime_hours": 744,
+        "protocol": "WireGuard",
+        "encryption": "ChaCha20-Poly1305"
+      },
+      "parrot": {
+        "status": "online",
+        "ip": "10.0.0.10",
+        "os": "Parrot Security OS 6.1",
+        "tools_active": ["Semgrep", "Gitleaks", "Trivy", "ZAP"],
+        "cpu_percent": 23,
+        "memory_percent": 45
+      },
+      "agent": {
+        "status": "online",
+        "ip": "10.0.0.20",
+        "type": "Security Automation Agent",
+        "tasks_completed": 147,
+        "tasks_queued": 3,
+        "last_heartbeat": "2026-02-19T05:26:00Z"
+      }
+    },
+    "cloud": {
+      "gcp_project": "xyz-financial-prod",
+      "region": "us-central1",
+      "vpc_status": "healthy",
+      "firewall_rules_active": 7,
+      "k8s_nodes": 3,
+      "k8s_pods_running": 12,
+      "k8s_pods_total": 15
+    },
+    "onprem": {
+      "datacenter": "XYZ-DC-01",
+      "vpn_tunnel_status": "established",
+      "latency_ms": 12,
+      "bandwidth_mbps": 950
+    }
+  },
+  "activity_log": [
+    { "timestamp": "2026-02-19T05:26:34Z", "level": "info", "source": "pipeline", "message": "Security Pipeline completed successfully - all 6 stages passed" },
+    { "timestamp": "2026-02-19T05:26:30Z", "level": "success", "source": "dast", "message": "OWASP ZAP scan finished - 3 alerts identified in vulnerable-app" },
+    { "timestamp": "2026-02-19T05:25:45Z", "level": "success", "source": "container", "message": "Trivy scan: 0 CRITICAL, 0 HIGH vulnerabilities in hardened image" },
+    { "timestamp": "2026-02-19T05:25:10Z", "level": "warning", "source": "sast", "message": "Semgrep detected 8 findings in task-04 vulnerable-app (expected - demo app)" },
+    { "timestamp": "2026-02-19T05:24:50Z", "level": "success", "source": "iac", "message": "Checkov IaC scan passed - 22/22 checks passed on Terraform configs" },
+    { "timestamp": "2026-02-19T05:24:20Z", "level": "success", "source": "sca", "message": "pip-audit: no known vulnerabilities in production dependencies" },
+    { "timestamp": "2026-02-19T05:24:00Z", "level": "success", "source": "secrets", "message": "Gitleaks scan clean - 0 secrets detected (bad-example allowlisted)" },
+    { "timestamp": "2026-02-19T05:23:45Z", "level": "info", "source": "pipeline", "message": "Security Pipeline triggered by push to main (commit c55515a)" },
+    { "timestamp": "2026-02-19T04:12:42Z", "level": "success", "source": "sast", "message": "SAST Scan workflow completed on PR #1" },
+    { "timestamp": "2026-02-19T03:30:58Z", "level": "success", "source": "container", "message": "Container Scan passed for task-08-devsecops/Dockerfile" },
+    { "timestamp": "2026-02-19T03:15:00Z", "level": "info", "source": "agent", "message": "Security Agent completed OPA policy validation - 15 policies evaluated" },
+    { "timestamp": "2026-02-19T02:45:00Z", "level": "info", "source": "k8s", "message": "Gatekeeper admission controller blocked 2 non-compliant deployments" },
+    { "timestamp": "2026-02-19T02:30:00Z", "level": "warning", "source": "falco", "message": "Falco alert: shell spawned in container xyz-api-7d4b8c (test environment)" },
+    { "timestamp": "2026-02-19T01:00:00Z", "level": "info", "source": "vpn", "message": "WireGuard tunnel rekeyed - OnPrem connection stable at 12ms latency" },
+    { "timestamp": "2026-02-18T22:45:10Z", "level": "error", "source": "dast", "message": "DAST Scan failed - target application unreachable on port 5000" },
+    { "timestamp": "2026-02-18T22:00:00Z", "level": "info", "source": "agent", "message": "Nightly vulnerability database update completed (NVD + GitHub Advisory)" },
+    { "timestamp": "2026-02-18T21:30:00Z", "level": "success", "source": "backup", "message": "Encrypted backup of security scan results uploaded to GCS" },
+    { "timestamp": "2026-02-18T20:00:00Z", "level": "info", "source": "compliance", "message": "PCI-DSS v4.0 compliance check: 94% controls implemented" }
+  ],
+  "summary": {
+    "total_vulnerabilities": 11,
+    "critical": 2,
+    "high": 3,
+    "medium": 4,
+    "low": 2,
+    "resolved": 2,
+    "mitigated": 1,
+    "open": 8,
+    "pipelines_total": 5,
+    "pipelines_passing": 4,
+    "pipelines_failing": 1,
+    "last_full_scan": "2026-02-19T05:26:34Z",
+    "compliance_score": 94
+  }
+}

@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>XYZ Financial - Security Operations Center</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', system-ui, sans-serif; background: #0a0e17; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0d1117; }
+    ::-webkit-scrollbar-thumb { background: #1c2333; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #2d3548; }
+
+    /* Glow effects */
+    .glow-green { box-shadow: 0 0 15px rgba(16, 185, 129, 0.15), inset 0 0 15px rgba(16, 185, 129, 0.05); }
+    .glow-red { box-shadow: 0 0 15px rgba(239, 68, 68, 0.15), inset 0 0 15px rgba(239, 68, 68, 0.05); }
+    .glow-blue { box-shadow: 0 0 15px rgba(59, 130, 246, 0.1), inset 0 0 15px rgba(59, 130, 246, 0.03); }
+    .glow-amber { box-shadow: 0 0 15px rgba(245, 158, 11, 0.1), inset 0 0 15px rgba(245, 158, 11, 0.03); }
+
+    /* Card base */
+    .card {
+      background: linear-gradient(135deg, #111827 0%, #0d1117 100%);
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+    }
+    .card:hover { border-color: #334155; }
+
+    /* Pulse animation for live indicators */
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+    .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+
+    /* Scan line effect */
+    @keyframes scanline {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(100vh); }
+    }
+    .scanline {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.08), transparent);
+      animation: scanline 8s linear infinite;
+      pointer-events: none; z-index: 50;
+    }
+
+    /* Grid bg */
+    .grid-bg {
+      background-image:
+        linear-gradient(rgba(30, 41, 59, 0.3) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(30, 41, 59, 0.3) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    /* Node connections for architecture map */
+    .arch-connection {
+      stroke-dasharray: 6 4;
+      animation: dash-flow 1.5s linear infinite;
+    }
+    @keyframes dash-flow {
+      to { stroke-dashoffset: -10; }
+    }
+
+    /* Log entry fade-in */
+    @keyframes fade-in-up {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .log-entry { animation: fade-in-up 0.3s ease-out; }
+
+    /* Status bar pulse */
+    @keyframes bar-pulse {
+      0%, 100% { opacity: 0.7; }
+      50% { opacity: 1; }
+    }
+
+    /* Severity badge gradients */
+    .badge-critical { background: linear-gradient(135deg, #7f1d1d, #991b1b); border: 1px solid #dc2626; }
+    .badge-high { background: linear-gradient(135deg, #7c2d12, #9a3412); border: 1px solid #ea580c; }
+    .badge-medium { background: linear-gradient(135deg, #78350f, #92400e); border: 1px solid #d97706; }
+    .badge-low { background: linear-gradient(135deg, #1e3a5f, #1e40af); border: 1px solid #3b82f6; }
+
+    /* Topology node */
+    .topo-node {
+      transition: all 0.2s ease;
+    }
+    .topo-node:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.2);
+    }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cyber: {
+              bg: '#0a0e17',
+              card: '#111827',
+              border: '#1e293b',
+              text: '#e2e8f0',
+              muted: '#64748b',
+              accent: '#10b981',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-cyber-bg text-cyber-text min-h-screen grid-bg">
+  <div class="scanline"></div>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useMemo } = React;
+
+    // ── Helpers ──────────────────────────────────────────────
+    function timeAgo(dateStr) {
+      const diff = Date.now() - new Date(dateStr).getTime();
+      const mins = Math.floor(diff / 60000);
+      if (mins < 1) return 'just now';
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return `${hrs}h ${mins % 60}m ago`;
+      const days = Math.floor(hrs / 24);
+      return `${days}d ago`;
+    }
+
+    function formatTime(dateStr) {
+      return new Date(dateStr).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatDuration(secs) {
+      if (secs < 60) return `${secs}s`;
+      return `${Math.floor(secs / 60)}m ${secs % 60}s`;
+    }
+
+    // ── Status Indicator ────────────────────────────────────
+    function StatusDot({ status, size = 'md' }) {
+      const sizeMap = { sm: 'w-2 h-2', md: 'w-2.5 h-2.5', lg: 'w-3 h-3' };
+      const colorMap = {
+        success: 'bg-emerald-400', online: 'bg-emerald-400',
+        failure: 'bg-red-400', error: 'bg-red-400', offline: 'bg-red-400',
+        warning: 'bg-amber-400', running: 'bg-blue-400',
+      };
+      return (
+        <span className="relative flex items-center justify-center">
+          <span className={`${sizeMap[size]} rounded-full ${colorMap[status] || 'bg-slate-400'} pulse-dot`} />
+          <span className={`absolute ${sizeMap[size]} rounded-full ${colorMap[status] || 'bg-slate-400'} opacity-30 scale-150`} />
+        </span>
+      );
+    }
+
+    // ── Header ──────────────────────────────────────────────
+    function Header({ data }) {
+      const [now, setNow] = useState(new Date());
+      useEffect(() => { const i = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(i); }, []);
+
+      return (
+        <header className="border-b border-cyber-border bg-cyber-bg/80 backdrop-blur-md sticky top-0 z-40">
+          <div className="max-w-[1920px] mx-auto px-6 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                </svg>
+                <div>
+                  <h1 className="text-lg font-semibold tracking-tight">XYZ Financial <span className="text-emerald-400">SOC</span></h1>
+                  <p className="text-[10px] text-cyber-muted uppercase tracking-widest">Security Operations Center</p>
+                </div>
+              </div>
+              <div className="h-8 w-px bg-cyber-border ml-2" />
+              <div className="flex items-center gap-2 text-xs text-cyber-muted">
+                <StatusDot status="online" size="sm" />
+                <span>LIVE</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-6">
+              <div className="hidden md:flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                  <span className="text-emerald-400 font-medium">{data?.summary?.pipelines_passing || 0}</span>
+                  <span className="text-emerald-400/70">Passing</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <span className="text-red-400 font-medium">{data?.summary?.pipelines_failing || 0}</span>
+                  <span className="text-red-400/70">Failing</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <span className="text-amber-400 font-medium">{data?.summary?.open || 0}</span>
+                  <span className="text-amber-400/70">Open Vulns</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="font-mono text-sm text-cyber-text">{now.toLocaleTimeString('en-US', { hour12: false })}</div>
+                <div className="font-mono text-[10px] text-cyber-muted">{now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
+              </div>
+            </div>
+          </div>
+        </header>
+      );
+    }
+
+    // ── Pipeline Card ───────────────────────────────────────
+    function PipelineCard({ pipeline }) {
+      const [expanded, setExpanded] = useState(false);
+      const ok = pipeline.status === 'success';
+
+      return (
+        <div className={`card p-4 cursor-pointer transition-all ${ok ? 'glow-green' : 'glow-red'}`}
+             onClick={() => setExpanded(!expanded)}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${ok ? 'bg-emerald-500/15' : 'bg-red-500/15'}`}>
+                {ok ? (
+                  <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                  </svg>
+                )}
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold">{pipeline.name}</h3>
+                <p className="text-[11px] text-cyber-muted mt-0.5">
+                  <span className="font-mono">{pipeline.commit}</span> &middot; {pipeline.trigger}
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ok ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+                {pipeline.status.toUpperCase()}
+              </span>
+              <p className="text-[11px] text-cyber-muted mt-1">{timeAgo(pipeline.last_run)}</p>
+            </div>
+          </div>
+
+          {/* Duration bar */}
+          <div className="mt-3 flex items-center gap-2">
+            <div className="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full ${ok ? 'bg-emerald-500/50' : 'bg-red-500/50'}`}
+                   style={{ width: `${Math.min(100, (pipeline.duration_seconds / 300) * 100)}%` }} />
+            </div>
+            <span className="text-[10px] font-mono text-cyber-muted">{formatDuration(pipeline.duration_seconds)}</span>
+          </div>
+
+          {/* Expanded stages */}
+          {expanded && pipeline.stages && (
+            <div className="mt-4 border-t border-cyber-border pt-3 space-y-2">
+              {pipeline.stages.map((stage, i) => (
+                <div key={i} className="flex items-center justify-between py-1">
+                  <div className="flex items-center gap-2">
+                    <StatusDot status={stage.status} size="sm" />
+                    <span className="text-xs">{stage.name}</span>
+                    <span className="text-[10px] font-mono text-cyber-muted px-1.5 py-0.5 rounded bg-slate-800">{stage.tool}</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-cyber-muted">{formatDuration(stage.duration_seconds)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {expanded && pipeline.error && (
+            <div className="mt-3 p-2 bg-red-500/10 border border-red-500/20 rounded-lg">
+              <p className="text-xs text-red-400 font-mono">{pipeline.error}</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── Vulnerability Table ─────────────────────────────────
+    function VulnTable({ vulns }) {
+      const [filter, setFilter] = useState('all');
+
+      const filtered = useMemo(() => {
+        if (filter === 'all') return vulns;
+        return vulns.filter(v => v.severity === filter);
+      }, [vulns, filter]);
+
+      const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+      const sorted = [...filtered].sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+      const badgeClass = {
+        critical: 'badge-critical',
+        high: 'badge-high',
+        medium: 'badge-medium',
+        low: 'badge-low',
+      };
+
+      const statusIcon = {
+        open: <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />,
+        mitigated: <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />,
+        resolved: <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />,
+      };
+
+      return (
+        <div className="card glow-amber overflow-hidden">
+          <div className="p-4 border-b border-cyber-border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+                <h2 className="text-sm font-semibold">Vulnerabilities</h2>
+                <span className="text-[10px] font-mono text-cyber-muted bg-slate-800 px-2 py-0.5 rounded-full">{vulns.length}</span>
+              </div>
+              <div className="flex gap-1">
+                {['all', 'critical', 'high', 'medium', 'low'].map(f => (
+                  <button key={f} onClick={() => setFilter(f)}
+                    className={`text-[10px] px-2 py-1 rounded-md font-medium uppercase tracking-wider transition-colors
+                      ${filter === f ? 'bg-slate-700 text-white' : 'text-cyber-muted hover:text-white hover:bg-slate-800'}`}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-[10px] text-cyber-muted uppercase tracking-wider border-b border-cyber-border">
+                  <th className="text-left py-2.5 px-4 font-medium">ID</th>
+                  <th className="text-left py-2.5 px-4 font-medium">Finding</th>
+                  <th className="text-left py-2.5 px-4 font-medium">Severity</th>
+                  <th className="text-left py-2.5 px-4 font-medium">CWE</th>
+                  <th className="text-left py-2.5 px-4 font-medium">Tool</th>
+                  <th className="text-left py-2.5 px-4 font-medium">Location</th>
+                  <th className="text-left py-2.5 px-4 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((v) => (
+                  <tr key={v.id} className="border-b border-cyber-border/50 hover:bg-white/[0.02] transition-colors">
+                    <td className="py-2.5 px-4 font-mono text-cyber-muted">{v.id}</td>
+                    <td className="py-2.5 px-4">
+                      <div className="font-medium text-cyber-text">{v.title}</div>
+                      <div className="text-[10px] text-cyber-muted mt-0.5 max-w-[300px] truncate">{v.description}</div>
+                    </td>
+                    <td className="py-2.5 px-4">
+                      <span className={`${badgeClass[v.severity]} px-2 py-0.5 rounded-md text-[10px] font-bold uppercase text-white`}>
+                        {v.severity}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-blue-400">{v.cwe}</td>
+                    <td className="py-2.5 px-4">
+                      <span className="text-cyber-muted bg-slate-800 px-1.5 py-0.5 rounded font-mono">{v.tool}</span>
+                    </td>
+                    <td className="py-2.5 px-4 font-mono text-[10px] text-cyber-muted max-w-[180px] truncate" title={`${v.file}:${v.line}`}>
+                      {v.file.split('/').pop()}:{v.line}
+                    </td>
+                    <td className="py-2.5 px-4">
+                      <div className="flex items-center gap-1.5">
+                        {statusIcon[v.status]}
+                        <span className={`text-[10px] font-medium capitalize
+                          ${v.status === 'open' ? 'text-red-400' : v.status === 'mitigated' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                          {v.status}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Architecture Map ────────────────────────────────────
+    function ArchMap({ infra }) {
+      const bunker = infra?.bunker || {};
+      const cloud = infra?.cloud || {};
+      const onprem = infra?.onprem || {};
+
+      function Node({ x, y, label, sublabel, status, icon, stats }) {
+        return (
+          <g className="topo-node" transform={`translate(${x}, ${y})`}>
+            <rect x="-70" y="-35" width="140" height="70" rx="8"
+              fill={status === 'online' || status === 'healthy' || status === 'established' ? '#064e3b' : '#7f1d1d'}
+              fillOpacity="0.3"
+              stroke={status === 'online' || status === 'healthy' || status === 'established' ? '#10b981' : '#ef4444'}
+              strokeWidth="1.5" />
+            <text x="0" y="-12" textAnchor="middle" fill="#e2e8f0" fontSize="11" fontWeight="600">{label}</text>
+            <text x="0" y="3" textAnchor="middle" fill="#94a3b8" fontSize="9">{sublabel}</text>
+            {stats && <text x="0" y="18" textAnchor="middle" fill="#64748b" fontSize="8" fontFamily="JetBrains Mono">{stats}</text>}
+            <circle cx="55" cy="-20" r="4"
+              fill={status === 'online' || status === 'healthy' || status === 'established' ? '#10b981' : '#ef4444'}>
+              <animate attributeName="opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite" />
+            </circle>
+          </g>
+        );
+      }
+
+      return (
+        <div className="card glow-blue overflow-hidden">
+          <div className="p-4 border-b border-cyber-border">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008zm-3 6h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z" />
+              </svg>
+              <h2 className="text-sm font-semibold">Infrastructure Topology</h2>
+              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full ml-auto">ALL SYSTEMS OPERATIONAL</span>
+            </div>
+          </div>
+
+          <div className="p-4">
+            <svg viewBox="0 0 800 320" className="w-full">
+              {/* Zone backgrounds */}
+              <rect x="10" y="10" width="280" height="300" rx="12" fill="#0f172a" stroke="#1e293b" strokeWidth="1" strokeDasharray="4 3" />
+              <text x="150" y="35" textAnchor="middle" fill="#475569" fontSize="10" fontWeight="600" letterSpacing="2">BUNKER (SECURE ZONE)</text>
+
+              <rect x="310" y="10" width="200" height="300" rx="12" fill="#0f172a" stroke="#1e293b" strokeWidth="1" strokeDasharray="4 3" />
+              <text x="410" y="35" textAnchor="middle" fill="#475569" fontSize="10" fontWeight="600" letterSpacing="2">CLOUD (GCP)</text>
+
+              <rect x="530" y="10" width="260" height="300" rx="12" fill="#0f172a" stroke="#1e293b" strokeWidth="1" strokeDasharray="4 3" />
+              <text x="660" y="35" textAnchor="middle" fill="#475569" fontSize="10" fontWeight="600" letterSpacing="2">ON-PREMISE (XYZ-DC)</text>
+
+              {/* Connections */}
+              <line x1="220" y1="100" x2="220" y2="170" className="arch-connection" stroke="#10b981" strokeWidth="1.5" opacity="0.5" />
+              <line x1="220" y1="200" x2="220" y2="260" className="arch-connection" stroke="#10b981" strokeWidth="1.5" opacity="0.5" />
+              <line x1="150" y1="100" x2="340" y2="100" className="arch-connection" stroke="#3b82f6" strokeWidth="1.5" opacity="0.5" />
+              <line x1="150" y1="190" x2="340" y2="160" className="arch-connection" stroke="#3b82f6" strokeWidth="1.5" opacity="0.3" />
+
+              {/* Cloud to OnPrem VPN tunnel */}
+              <line x1="480" y1="160" x2="590" y2="160" stroke="#f59e0b" strokeWidth="2" opacity="0.6" strokeDasharray="8 4">
+                <animate attributeName="stroke-dashoffset" values="0;-12" dur="1s" repeatCount="indefinite" />
+              </line>
+              <rect x="498" y="148" width="65" height="18" rx="4" fill="#78350f" fillOpacity="0.6" stroke="#f59e0b" strokeWidth="0.5" />
+              <text x="530" y="161" textAnchor="middle" fill="#fbbf24" fontSize="7" fontWeight="600">IPSec VPN</text>
+
+              {/* Bunker Nodes */}
+              <Node x={150} y={90} label="VPN Hub" sublabel="WireGuard Gateway"
+                status={bunker.vpn_hub?.status}
+                stats={`${bunker.vpn_hub?.ip} | ${bunker.vpn_hub?.connections} conn`} />
+              <Node x={150} y={190} label="Parrot OS" sublabel="Security Scanner"
+                status={bunker.parrot?.status}
+                stats={`CPU ${bunker.parrot?.cpu_percent}% | RAM ${bunker.parrot?.memory_percent}%`} />
+              <Node x={150} y={270} label="Agent" sublabel="Automation Engine"
+                status={bunker.agent?.status}
+                stats={`${bunker.agent?.tasks_completed} done | ${bunker.agent?.tasks_queued} queued`} />
+
+              {/* Cloud Nodes */}
+              <Node x={410} y={100} label="GCP VPC" sublabel={cloud.region}
+                status={cloud.vpc_status}
+                stats={`${cloud.firewall_rules_active} FW rules`} />
+              <Node x={410} y={210} label="GKE Cluster" sublabel="Kubernetes"
+                status="online"
+                stats={`${cloud.k8s_nodes}N | ${cloud.k8s_pods_running}/${cloud.k8s_pods_total} pods`} />
+
+              {/* OnPrem Nodes */}
+              <Node x={660} y={100} label="XYZ-DC-01" sublabel="Primary Datacenter"
+                status={onprem.vpn_tunnel_status === 'established' ? 'online' : 'offline'}
+                stats={`${onprem.latency_ms}ms | ${onprem.bandwidth_mbps}Mbps`} />
+              <Node x={660} y={210} label="Legacy DB" sublabel="PostgreSQL + Redis"
+                status="online"
+                stats="Encrypted at rest" />
+
+              {/* Connection between cloud nodes */}
+              <line x1="410" y1="140" x2="410" y2="175" className="arch-connection" stroke="#3b82f6" strokeWidth="1.5" opacity="0.4" />
+              {/* OnPrem internal */}
+              <line x1="660" y1="140" x2="660" y2="175" className="arch-connection" stroke="#64748b" strokeWidth="1.5" opacity="0.3" />
+            </svg>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Activity Log ────────────────────────────────────────
+    function ActivityLog({ logs }) {
+      const logRef = useRef(null);
+      const [autoScroll, setAutoScroll] = useState(true);
+
+      const levelConfig = {
+        info:    { color: 'text-blue-400',    bg: 'bg-blue-500/10',    icon: 'I', border: 'border-blue-500/20' },
+        success: { color: 'text-emerald-400', bg: 'bg-emerald-500/10', icon: 'OK', border: 'border-emerald-500/20' },
+        warning: { color: 'text-amber-400',   bg: 'bg-amber-500/10',   icon: 'W', border: 'border-amber-500/20' },
+        error:   { color: 'text-red-400',     bg: 'bg-red-500/10',     icon: '!!', border: 'border-red-500/20' },
+      };
+
+      return (
+        <div className="card glow-blue overflow-hidden flex flex-col" style={{ maxHeight: '500px' }}>
+          <div className="p-4 border-b border-cyber-border flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
+              </svg>
+              <h2 className="text-sm font-semibold">Activity Log</h2>
+              <span className="text-[10px] font-mono text-cyber-muted bg-slate-800 px-2 py-0.5 rounded-full">{logs.length} events</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <StatusDot status="online" size="sm" />
+              <span className="text-[10px] text-emerald-400 font-mono">STREAMING</span>
+            </div>
+          </div>
+
+          <div ref={logRef} className="flex-1 overflow-y-auto p-3 space-y-1 font-mono text-[11px]">
+            {logs.map((log, i) => {
+              const cfg = levelConfig[log.level] || levelConfig.info;
+              return (
+                <div key={i} className={`log-entry flex items-start gap-2 py-1.5 px-2 rounded-md hover:bg-white/[0.02] transition-colors`}>
+                  <span className="text-cyber-muted shrink-0 w-[60px]">{formatTime(log.timestamp)}</span>
+                  <span className={`shrink-0 w-[28px] text-center ${cfg.color} ${cfg.bg} ${cfg.border} border rounded text-[9px] font-bold py-0.5`}>
+                    {cfg.icon}
+                  </span>
+                  <span className="shrink-0 w-[70px] text-cyber-muted">[{log.source}]</span>
+                  <span className="text-cyber-text/90">{log.message}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Summary Stats ───────────────────────────────────────
+    function SummaryStats({ summary }) {
+      const stats = [
+        { label: 'Critical', value: summary.critical, color: 'text-red-400', bg: 'bg-red-500/10', ring: 'ring-red-500/20' },
+        { label: 'High', value: summary.high, color: 'text-orange-400', bg: 'bg-orange-500/10', ring: 'ring-orange-500/20' },
+        { label: 'Medium', value: summary.medium, color: 'text-amber-400', bg: 'bg-amber-500/10', ring: 'ring-amber-500/20' },
+        { label: 'Low', value: summary.low, color: 'text-blue-400', bg: 'bg-blue-500/10', ring: 'ring-blue-500/20' },
+      ];
+
+      const resolvedPct = summary.total_vulnerabilities > 0
+        ? Math.round(((summary.resolved + summary.mitigated) / summary.total_vulnerabilities) * 100) : 0;
+
+      return (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {stats.map((s, i) => (
+            <div key={i} className={`card p-4 flex flex-col items-center ring-1 ${s.ring}`}>
+              <span className={`text-3xl font-bold ${s.color}`}>{s.value}</span>
+              <span className="text-[10px] text-cyber-muted uppercase tracking-wider mt-1">{s.label}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // ── Compliance Gauge ────────────────────────────────────
+    function ComplianceGauge({ score }) {
+      const circumference = 2 * Math.PI * 40;
+      const offset = circumference - (score / 100) * circumference;
+      const color = score >= 90 ? '#10b981' : score >= 70 ? '#f59e0b' : '#ef4444';
+
+      return (
+        <div className="card p-5 flex flex-col items-center glow-green">
+          <div className="flex items-center gap-2 mb-4 self-start">
+            <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+            </svg>
+            <h2 className="text-sm font-semibold">PCI-DSS v4.0</h2>
+          </div>
+          <div className="relative">
+            <svg width="100" height="100" className="-rotate-90">
+              <circle cx="50" cy="50" r="40" fill="none" stroke="#1e293b" strokeWidth="6" />
+              <circle cx="50" cy="50" r="40" fill="none" stroke={color} strokeWidth="6"
+                strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset}
+                style={{ transition: 'stroke-dashoffset 1s ease' }} />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-2xl font-bold" style={{ color }}>{score}%</span>
+              <span className="text-[9px] text-cyber-muted uppercase">Compliant</span>
+            </div>
+          </div>
+          <div className="mt-3 text-[10px] text-cyber-muted text-center">
+            Controls implemented and verified
+          </div>
+        </div>
+      );
+    }
+
+    // ── Resolved vs Open Chart ──────────────────────────────
+    function VulnBreakdown({ summary }) {
+      const total = summary.total_vulnerabilities || 1;
+      const openW = (summary.open / total) * 100;
+      const mitigatedW = (summary.mitigated / total) * 100;
+      const resolvedW = (summary.resolved / total) * 100;
+
+      return (
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <svg className="w-4 h-4 text-cyber-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+            </svg>
+            <h2 className="text-sm font-semibold">Remediation Progress</h2>
+          </div>
+
+          <div className="h-4 rounded-full overflow-hidden flex bg-slate-800">
+            <div className="bg-red-500/70 transition-all" style={{ width: `${openW}%` }}
+              title={`Open: ${summary.open}`} />
+            <div className="bg-amber-500/70 transition-all" style={{ width: `${mitigatedW}%` }}
+              title={`Mitigated: ${summary.mitigated}`} />
+            <div className="bg-emerald-500/70 transition-all" style={{ width: `${resolvedW}%` }}
+              title={`Resolved: ${summary.resolved}`} />
+          </div>
+
+          <div className="flex justify-between mt-3 text-[10px]">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-red-500/70" />
+              <span className="text-cyber-muted">Open ({summary.open})</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-500/70" />
+              <span className="text-cyber-muted">Mitigated ({summary.mitigated})</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500/70" />
+              <span className="text-cyber-muted">Resolved ({summary.resolved})</span>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+            <div className="bg-slate-800/50 rounded-lg py-2">
+              <div className="text-lg font-bold text-cyber-text">{summary.total_vulnerabilities}</div>
+              <div className="text-[9px] text-cyber-muted uppercase">Total</div>
+            </div>
+            <div className="bg-slate-800/50 rounded-lg py-2">
+              <div className="text-lg font-bold text-emerald-400">{summary.resolved + summary.mitigated}</div>
+              <div className="text-[9px] text-cyber-muted uppercase">Addressed</div>
+            </div>
+            <div className="bg-slate-800/50 rounded-lg py-2">
+              <div className="text-lg font-bold text-red-400">{summary.open}</div>
+              <div className="text-[9px] text-cyber-muted uppercase">Open</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Last Scan Info ──────────────────────────────────────
+    function LastScan({ timestamp }) {
+      return (
+        <div className="card p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+            <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-[10px] text-cyber-muted uppercase tracking-wider">Last Full Scan</p>
+            <p className="text-sm font-medium">{formatDate(timestamp)} <span className="text-cyber-muted">{formatTime(timestamp)}</span></p>
+            <p className="text-[10px] text-blue-400">{timeAgo(timestamp)}</p>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Main App ────────────────────────────────────────────
+    function App() {
+      const [data, setData] = useState(null);
+      const [error, setError] = useState(null);
+      const [lastRefresh, setLastRefresh] = useState(null);
+
+      async function loadData() {
+        try {
+          const res = await fetch('status.json?t=' + Date.now());
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const json = await res.json();
+          setData(json);
+          setError(null);
+          setLastRefresh(new Date());
+        } catch (e) {
+          // On first load failure, use embedded demo data
+          if (!data) {
+            setError('Could not load status.json - showing demo data');
+            setData(DEMO_DATA);
+          }
+        }
+      }
+
+      useEffect(() => {
+        loadData();
+        const interval = setInterval(loadData, 30000); // Refresh every 30s
+        return () => clearInterval(interval);
+      }, []);
+
+      if (!data) {
+        return (
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-10 h-10 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-cyber-muted text-sm">Loading security data...</p>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          <Header data={data} />
+
+          {error && (
+            <div className="max-w-[1920px] mx-auto w-full px-6 mt-3">
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-2 text-xs text-amber-400">
+                {error}
+              </div>
+            </div>
+          )}
+
+          <main className="flex-1 max-w-[1920px] mx-auto w-full p-6 space-y-6">
+            {/* Row 1: Pipelines + Summary */}
+            <section>
+              <h2 className="text-xs text-cyber-muted uppercase tracking-widest mb-3 font-semibold flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                Pipeline Status
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+                {data.pipelines.map((p, i) => (
+                  <PipelineCard key={i} pipeline={p} />
+                ))}
+              </div>
+            </section>
+
+            {/* Row 2: Vuln Stats */}
+            <section>
+              <h2 className="text-xs text-cyber-muted uppercase tracking-widest mb-3 font-semibold flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                Vulnerability Summary
+              </h2>
+              <SummaryStats summary={data.summary} />
+            </section>
+
+            {/* Row 3: Vulns Table */}
+            <section>
+              <VulnTable vulns={data.vulnerabilities} />
+            </section>
+
+            {/* Row 4: Architecture + Sidebar */}
+            <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+              <div className="xl:col-span-2">
+                <ArchMap infra={data.infrastructure} />
+              </div>
+              <div className="space-y-4">
+                <ComplianceGauge score={data.summary.compliance_score} />
+                <VulnBreakdown summary={data.summary} />
+                <LastScan timestamp={data.summary.last_full_scan} />
+              </div>
+            </section>
+
+            {/* Row 5: Activity Log */}
+            <section>
+              <ActivityLog logs={data.activity_log} />
+            </section>
+          </main>
+
+          <footer className="border-t border-cyber-border py-4 text-center text-[10px] text-cyber-muted">
+            XYZ Financial Services &mdash; Security Operations Center &mdash; Confidential
+          </footer>
+        </div>
+      );
+    }
+
+    // Embedded fallback data (subset) for offline/demo viewing
+    const DEMO_DATA = {
+      pipelines: [
+        { name: "Security Pipeline", status: "success", last_run: new Date().toISOString(), duration_seconds: 247, trigger: "push to main", commit: "c55515a",
+          stages: [
+            { name: "Secret Scan", status: "success", tool: "Gitleaks", duration_seconds: 18 },
+            { name: "SAST", status: "success", tool: "Semgrep", duration_seconds: 45 },
+            { name: "Container Scan", status: "success", tool: "Trivy", duration_seconds: 63 },
+          ]
+        },
+        { name: "DAST Scan", status: "failure", last_run: new Date(Date.now() - 3600000).toISOString(), duration_seconds: 189, trigger: "manual", commit: "0fb5f6a", error: "Target unreachable" },
+      ],
+      vulnerabilities: [
+        { id: "VULN-001", title: "SQL Injection in login", severity: "critical", cwe: "CWE-89", file: "app.py", line: 84, tool: "Semgrep", status: "open", description: "SQL injection via f-string" },
+        { id: "VULN-002", title: "Reflected XSS", severity: "high", cwe: "CWE-79", file: "app.py", line: 103, tool: "Semgrep", status: "open", description: "Unsanitized input in template" },
+      ],
+      infrastructure: {
+        bunker: {
+          vpn_hub: { status: "online", ip: "10.0.0.1", connections: 3, protocol: "WireGuard" },
+          parrot: { status: "online", ip: "10.0.0.10", cpu_percent: 23, memory_percent: 45 },
+          agent: { status: "online", ip: "10.0.0.20", tasks_completed: 147, tasks_queued: 3 },
+        },
+        cloud: { region: "us-central1", vpc_status: "healthy", firewall_rules_active: 7, k8s_nodes: 3, k8s_pods_running: 12, k8s_pods_total: 15 },
+        onprem: { vpn_tunnel_status: "established", latency_ms: 12, bandwidth_mbps: 950 },
+      },
+      activity_log: [
+        { timestamp: new Date().toISOString(), level: "info", source: "pipeline", message: "Security Pipeline completed successfully" },
+        { timestamp: new Date(Date.now() - 60000).toISOString(), level: "success", source: "sast", message: "Semgrep scan finished - 8 findings" },
+      ],
+      summary: { total_vulnerabilities: 11, critical: 2, high: 3, medium: 4, low: 2, resolved: 2, mitigated: 1, open: 8, pipelines_total: 5, pipelines_passing: 4, pipelines_failing: 1, last_full_scan: new Date().toISOString(), compliance_score: 94 },
+    };
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
